@@ -1,0 +1,346 @@
+---
+title: "Cyclistic Case Study"
+author: "Grantha"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## A Capstone Project for the Google Data Analytics Professional Certificate
+
+### Scenario
+Cyclistic is an imaginary bike-share company in Chicago. My task is to work as data-analyst on their marketing analyst team.
+
+Cyclistic has two types of customers - annual members and casual riders. The director of marketing believes the company’s future success depends on maximizing the number of annual memberships. Therefore, my team wants to understand how casual riders and annual members use Cyclistic bikes differently and leverage the insights to design a new marketing strategy to convert casual riders into annual members.
+
+### Business Question
+
+How do annual members and casual riders use Cyclistic bikes differently ?
+
+### Stakeholders
+
+* Director of Marketing
+* Cyclistic Executive Team
+
+### Setting up my environment
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(skimr)
+library(janitor)
+library(tidyr)
+library(lubridate)
+library(dplyr)
+library(data.table)
+library(hms)
+library(plotly)
+```
+
+### Preparing the Data
+
+12 months of Cyclistic's historical trip data was downloaded in separate .csv files, dating from January 2023 to December 2023. The data we are working on is of first-party type — data collected and used by Cyclistic. For the purposes of this capstone project, the data was provided under a license from divvybikes.com, a real bike-share company operating in Chicago. Riders' personal information has been scrubbed.
+
+### Loading .csv files
+```{r message=FALSE, warning=FALSE}
+jan23_df<-read_csv("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202301-divvy-tripdata.csv")
+feb23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202302-divvy-tripdata.csv"))
+mar23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202303-divvy-tripdata.csv"))
+apr23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202304-divvy-tripdata.csv"))
+may23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202305-divvy-tripdata.csv"))
+jun23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202306-divvy-tripdata.csv"))
+jul23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202307-divvy-tripdata.csv"))
+aug23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202308-divvy-tripdata.csv"))
+sep23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202309-divvy-tripdata.csv"))
+oct3_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202310-divvy-tripdata.csv"))
+nov23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202311-divvy-tripdata.csv"))
+dec23_df<-read_csv(("C://Users//GRANTHA//Documents//Cyclistic_bikes_2024//.csv files//202312-divvy-tripdata.csv"))
+```
+
+#### ROCCC approach is used to determine the credibility of the data
+
+**Reliable:** - This dataset is comprehensive and accurate, covering every bike ride taken in Chicago during the chosen timeframe for our analysis.
+
+**Original:** - The data is provided by Motivate International Inc., the operator of Chicago’s Divvy bicycle sharing service, which is powered by Lyft.
+
+**Comprehensive:** - It includes detailed information about each ride, such as start time, end time, station names and IDs, membership type, and more.
+
+**Current:** - The data is up-to-date, extending through the end of June 2023.
+
+**Cited:** - The dataset is properly cited and is made available under the Data License Agreement.
+
+### Data Limitations
+
+Upon processing the data it can be observed that “start station name and ID” and “end station name and ID” for some rides are missing. Further observations suggest that the most missing data about “start station name” belongs to “electric bikes”.
+
+Furthermore, because of data privacy issues, riders are not personally identified and, although each ride ID was checked and confirmed to be distinct, there is no way to tell if the same rider has purchased multiple single passes, or if they live in the Cyclistic service area.
+
+These limitations could affect the analysis and have an impact on the results.
+
+### Data Cleaning and Manipulation
+
+Combining individual month datasets into one dataframe
+```{r message=FALSE, warning=FALSE}
+cyclistic_df<-rbind(jan23_df,feb23_df,mar23_df,apr23_df,may23_df,jun23_df,jul23_df,
+                    aug23_df,sep23_df,oct3_df,nov23_df,dec23_df)
+```
+
+Trimmed dataframe including only relevant columns
+```{r message=FALSE, warning=FALSE}
+trimmed_cyclistic_df<-select(cyclistic_df,"rideable_type","started_at", "ended_at","member_casual")
+```
+
+Create a dataframe containing the new columns
+```{r message=FALSE, warning=FALSE}
+cyclistic_new_df<-trimmed_cyclistic_df
+```
+
+Create a new column for ride_length
+```{r message=FALSE, warning=FALSE}
+cyclistic_new_df$ride_length <- difftime(cyclistic_new_df$ended_at,cyclistic_new_df$started_at,units = "mins")
+cyclistic_new_df$ride_length <- round(cyclistic_new_df$ride_length, digits = 1)
+```
+
+
+Create columns for all date calculations
+```{r message=FALSE, warning=FALSE}
+cyclistic_new_df$date <- as.Date(cyclistic_new_df$started_at)
+cyclistic_new_df$day_of_week <- weekdays(cyclistic_new_df$started_at)
+cyclistic_new_df$day_of_week <- format(as.Date(cyclistic_new_df$date), "%A")
+cyclistic_new_df$month <- format(as.Date(cyclistic_new_df$date), "%m")
+cyclistic_new_df$day <- format(as.Date(cyclistic_new_df$date), "%d")
+cyclistic_new_df$year <- format(as.Date(cyclistic_new_df$date), "%Y")
+```
+
+Create columns for all time calculations
+```{r message=FALSE, warning=FALSE}
+cyclistic_new_df$time <- format(as.Date(cyclistic_new_df$date), "%H:%M:%S")
+cyclistic_new_df$time <- as_hms(cyclistic_new_df$started_at)
+cyclistic_new_df$hour <- hour(cyclistic_new_df$time)
+```
+
+Map months to different seasons
+```{r message=FALSE, warning=FALSE}
+cyclistic_new_df$season <- ifelse(cyclistic_new_df$month %in% c("12", "01", "02"), "Winter",
+                                  ifelse(cyclistic_new_df$month %in% c("03", "04", "05"), "Spring",
+                                         ifelse(cyclistic_new_df$month %in% c("06", "07", "08"), "Summer",
+                                                "Fall")))
+```
+
+Remove where ride_length is 0 or negative
+```{r message=FALSE, warning=FALSE}
+cyclistic_new_df <- na.omit(cyclistic_new_df) 
+cyclistic_new_df <- distinct(cyclistic_new_df) 
+cyclistic_new_df <- cyclistic_new_df[!(cyclistic_new_df$ride_length <= 0),] 
+```
+
+Assign all changes to a new dataframe
+```{r message=FALSE, warning=FALSE}
+cyclistic_new_df2 <- cyclistic_new_df
+```
+
+Total Rides
+```{r message=FALSE, warning=FALSE}
+total_rides <- nrow(cyclistic_new_df2)
+```
+## Analyzing
+
+### Calculated Stats
+
+Types of Bikes = Electric, Classic, Docked
+
+Total number of rides = 5,706,996
+
+Average Ride Length = 18.22478 mins
+
+Busiest Hour = 5:00 PM
+
+Busiest Day = Saturday
+
+Busiest Month = August
+
+Busiest Season = Summer
+
+Most popular bike = Electric 
+
+Most rides = Members
+
+#### Calculated stats by customer type to analyze differences
+
+* Total Rides          
+  + **Member** 3,651,783      
+  + **Casual** 2,055,213
+
+* Average Ride Length  
+  + **Member** 12.55 minutes  
+  + **Casual** 28.30 minutes
+
+* Busiest Time         
+  + **Member** 5:00 PM            
+  + **Casual** 5:00 PM
+
+* Busiest Weekday      
+  + **Member** Thursday       
+  + **Casual** Saturday
+
+* Busiest Month       
+  + **Member** August      
+  + **Casual** July
+  
+* Busiest Season      
+  + **Member** Summer      
+  + **Casual** Summer
+
+* Most Popular Bike   
+  + **Member** Elctric      
+  + **Casual** Electric
+  
+* Ride Length by Weekday
+  + **Member** Consistent duration across the week
+  + **Casual** Duration peaks on weekends
+   
+## Visualizing
+
+### Total Trips by Customer Type (Members **64%** vs. Casual Riders **36%**)
+
+```{r message=FALSE, warning=FALSE}
+p1 <- cyclistic_new_df2 %>% 
+  group_by(member_casual) %>% 
+  summarize(total_rides = n()) %>% 
+  arrange(member_casual) %>% 
+  ggplot(aes(x = member_casual, y = total_rides, fill=member_casual)) +
+  labs(title = "Total Rides By Customer Type",x = "Customer type", y="Total number of rides") +
+  geom_col(width = 0.5,position = position_dodge(width=0.5)) +
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) 
+ggplotly(p1)
+```
+
+### Average Ride Length by Customer Type (Members **13 min** vs. Casual Riders **28 min**)
+```{r message=FALSE, warning=FALSE}
+p2 <- cyclistic_new_df2 %>%
+  group_by(member_casual)%>%
+  summarize(average_ride_duration = mean(ride_length))%>%
+  ggplot(aes(x = member_casual, y = average_ride_duration, fill = member_casual)) +
+  labs(title = "Average Ride Length By Customer Type", x= "Customer Type",y="Average ride length") +
+  geom_col(width = 0.5, position = position_dodge(width = 0.5))
+ggplotly(p2)
+```
+
+### Busiest Times by Customer Type (Members **5pm** vs. Casual Riders **5pm**)
+```{r message=FALSE, warning=FALSE}
+p3 <- cyclistic_new_df2 %>%
+  group_by(member_casual, hour)%>%
+  summarize(total_rides = n())%>%
+  ggplot(aes(x = hour, y = total_rides, color = member_casual, group = member_casual)) +
+  geom_line() +
+  labs(title = "Bike Demand by Hour", x = "Time of Day",y = "Number of Rides") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE))
+ggplotly(p3)
+```
+
+### Busiest Weekday by Customer Type (Members **Thursday** vs. Casual Riders **Saturday**)
+```{r message=FALSE, warning=FALSE}
+#run this first for the weekdays to be displayed from Monday-Sunday
+cyclistic_new_df2 <- cyclistic_new_df2 %>%
+  mutate(day_of_week = factor(day_of_week, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")))
+p4 <- cyclistic_new_df2 %>%
+  group_by(member_casual, day_of_week)%>%
+  summarize(total_rides = n())%>%
+  ggplot(aes(x = day_of_week, y = total_rides, fill = member_casual, group = member_casual)) +
+  labs(title = "Total Rides by Weekday",x = "Days of the Week", y = "Number of Rides") +
+  geom_col(width = 0.5, position = position_dodge(width = 0.5)) +
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE))
+ggplotly(p4)
+```
+
+### Busiest Month by Customer Type (Members **August** vs. Casual Riders **July**)
+```{r message=FALSE, warning=FALSE}
+ggplotly(
+  cyclistic_new_df2 %>%
+    group_by(member_casual, month)%>%
+    summarize(total_rides = n())%>%
+    arrange(member_casual, month)%>%
+    ggplot(aes(x = month, y = total_rides, fill = member_casual)) +
+    labs(title = "Total Rides by Month") +
+    theme(axis.text.x = element_text(angle = 30)) +
+    geom_col(width = 0.5, position = position_dodge(width = 0.5)) +
+    scale_fill_manual(values = c("member" = "#1a5276", "casual" = "#f8c471")) +
+    scale_y_continuous(labels = function(x) format(x, scientific = FALSE))
+)
+```
+
+### Busiest Season by Customer Type (Members **Summer** vs. Casual Riders **Summer**)
+```{r message=FALSE, warning=FALSE}
+p5<-cyclistic_new_df2 %>% 
+  group_by(member_casual,season) %>% 
+  summarize(total_rides = n()) %>% 
+  ggplot(aes(x = season, y = total_rides,fill = member_casual)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Busiest Season by Customer Type",x = "Season", y = "Number of Rides") +
+  theme_minimal() +
+  scale_fill_manual(values = c("member" = "#1a5276", "casual" = "#f8c471"))
+ggplotly(p5)
+```
+
+### Most Popular Bike by Customer Type (Members **Electric** vs. Casual Riders **Electric**)
+```{r message=FALSE, warning=FALSE}
+ggplotly(
+  cyclistic_new_df2 %>%
+  group_by(rideable_type, member_casual)%>%
+  summarize(total_rides = n())%>%
+  ggplot(aes(x = rideable_type, y = total_rides, fill = member_casual)) +
+  geom_bar(stat = 'identity') +
+  labs(title = "Total Rides by Bike Type", x = "Bike Type", y = "Number of Rides") +
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) +
+  scale_fill_manual(values = c( "member" = "#0d47a1","casual" = "#e53935")))
+```
+
+
+### Ride Length by Weekday (Members **Consistent all days** vs. Casual Riders **Longer Weekend**)
+```{r message=FALSE, warning=FALSE}
+ggplotly(
+  cyclistic_new_df2 %>% 
+    group_by(member_casual,day_of_week) %>% 
+    summarize(average_ride_length = mean(ride_length)) %>% 
+    ggplot(aes(x = day_of_week, y = average_ride_length, color = member_casual,group = member_casual)) +
+    geom_line(size = 1.0) +
+    facet_wrap(~member_casual) +
+    labs(title = "Average Ride Length by Weekday", x = "Days of the Week", y = "Average Ride Length") +
+    theme(axis.text.x = element_text(angle = 90)) +
+    scale_y_continuous(labels = function(x) format(x, scientific =  FALSE))
+)
+```
+
+## Act
+
+### Key Findings
+
+-- Members took the most rides at 64% of the total trips compared to 36% for casual riders.
+
+-- However, casual riders averaged 28 minutes per bike ride, while members trip durations were less than half of that, at an average of 13 minutes per ride. The shorter rides of members suggest a task driven purpose, while the longer rides for casual riders suggests a pleasure trip.
+
+-- The busiest time of day for both members and casual riders was during the evenings, peaking at 5pm for both.
+
+-- The busiest weekdays for members were Monday through Friday, staying consistent throughout the weekends as well, suggesting that these are local commuters.
+
+--The summer was the busiest season for both types of customers, though member numbers stayed elevated through October. This pattern suggests that members likely use the bikeshare service for commuting, with October being the final month of consistently favorable biking weather in Chicago. In contrast, casual riders peaked in June, July, and August, indicating that these periods were primarily driven by sightseeing and vacationing activities.
+
+-- The most popular bike for both types of customer was the electric.
+
+-- Casual customers tend to use bikeshare services more frequently on weekends, whereas members utilize the service consistently throughout the week. This pattern suggests that members are likely local commuters, while casual riders are using the bikeshare primarily for weekend recreation.
+
+## Recommendations
+
+-- My top three recommendations to convert casual riders to annual members based on the results after analyzing the differences are:
+
+-- 1. Targeted Promotions for Weekends - Offering weekend deals since casual riders predominantly use the service on weekends, introduce special promotions or discounts for weekend rides. Highlight the benefits of membership during these peak times to capture their interest.
+
+--2. Feature Convenience of Membership - Promote ease of use by highlighting the convenience of having a membership, such as faster bike access, reduced wait times, and priority booking. Make it clear how membership can enhance their overall biking experience.
+
+--3.Create Engaging Content - Share experirnces by showcasing testimonials and success stories from current members who have benefited from their membership. Use these stories in marketing materials to build trust and appeal to casual riders.
+
+
+
